@@ -45,34 +45,28 @@ class OrderBookAggregator:
         return order_book_df
 
 def format_number(value):
-    """Formats scientific notation into decimal with 5 decimal places."""
-    return f"{value:.5f}"  # Adjust decimal places as needed
-
-
-def format_size(value):
-    """Formats large numbers with K (thousands) or M (millions)."""
+    """Formats large numbers with K (thousands) and M (millions)"""
     try:
-        value = float(value)  # Ensure conversion
+        value = float(value)  # Ensure numeric type
         if value >= 1_000_000:
             return f"{value / 1_000_000:.2f}M"
         elif value >= 1_000:
             return f"{value / 1_000:.2f}K"
-        return str(value)  # Keep as is for small numbers
-    except ValueError:
-        return value  # Return as is if not convertible
+        else:
+            return f"{value:.5f}"  # Ensure two decimal places
+    except (ValueError, TypeError):
+        return value  # Return as-is if not a number
 
 
 @st.fragment
 def order_book_display(data):
     st.write("## Order Book")
 
-    # Convert order book data into a DataFrame for structured display
-    max_rows = 20  # Adjust for more depth
+    max_rows = 20
     data = data.iloc[:max_rows]  # Fix incorrect list slicing on DataFrame
 
-    # Format numbers for better readability
-    data["Size (Bids)"] = data["Size (Bids)"].apply(format_size)
-    data["Size (Asks)"] = data["Size (Asks)"].apply(format_size)
+    data["Size (Bids)"] = data["Size (Bids)"].apply(format_number)
+    data["Size (Asks)"] = data["Size (Asks)"].apply(format_number)
 
     # Create DataFrame for structured table
     df = pd.DataFrame({
@@ -98,4 +92,4 @@ async def run_aggregator():
         order_books = await aggregator.get_order_books()
         with container:
             order_book_display(order_books)
-        print(order_books)  # Debugging output
+        print(order_books)  # Debugging output (can be removed)
