@@ -1,11 +1,13 @@
 import asyncio
-from .binance_websocket import BinanceWebSocket
-from .deribit_websocket import DeribitWebSocket
+
 import streamlit as st
 
+from .binance_websocket import BinanceWebSocket
+from .deribit_websocket import DeribitWebSocket
+
 EXCHANGE_WEBSOCKETS = {
-    'Binance': BinanceWebSocket,
-    'Deribit': DeribitWebSocket,
+    "Binance": BinanceWebSocket,
+    "Deribit": DeribitWebSocket,
     # You can add more exchanges here in the future
 }
 
@@ -19,7 +21,9 @@ async def run_api():
         if exchange_name in EXCHANGE_WEBSOCKETS:
             # Instantiate the WebSocket class for the given exchange
             exchange_class = EXCHANGE_WEBSOCKETS[exchange_name]
-            exchange_instance = exchange_class(depth=5)  # You can modify the arguments if needed
+            exchange_instance = exchange_class(
+                depth=10
+            )  # You can modify the arguments if needed
             exchange_instances.append(exchange_instance)
             print(f"Initialized {exchange_name} WebSocket")  # Debugging line
 

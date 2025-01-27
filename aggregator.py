@@ -1,17 +1,22 @@
+import os
+
 import pandas as pd
 import redis.asyncio as redis
-import asyncio
 import streamlit as st
 
+
 class OrderBookAggregator:
-    def __init__(self, redis_host='localhost', redis_port=6379):
+    def __init__(self):
+        pd.options.display.float_format = "{:.2f}".format
         self.redis = None
-        self.redis_host = redis_host
-        self.redis_port = redis_port
+        self.redis_host = os.getenv("REDIS_HOST")  # Use service name in Docker
+        self.redis_port = int(os.getenv("REDIS_PORT"))
 
     async def connect(self):
         """Initialize async Redis connection."""
-        self.redis = await redis.Redis(host=self.redis_host, port=self.redis_port, db=0, decode_responses=True)
+        self.redis = await redis.Redis(
+            host=self.redis_host, port=self.redis_port, decode_responses=True
+        )
 
     async def get_order_books(self):
         """
@@ -35,27 +40,28 @@ class OrderBookAggregator:
         bids += [("", "")] * (max_len - len(bids))  # Pad shorter list
         asks += [("", "")] * (max_len - len(asks))  # Pad shorter list
 
-        order_book_df = pd.DataFrame({
-            "Size (Bids)": [b[1] for b in bids],
-            "Bid Price": [b[0] for b in bids],
-            "Ask Price": [a[0] for a in asks],
-            "Size (Asks)": [a[1] for a in asks]
-        })
+        order_book_df = pd.DataFrame(
+            {
+                "Size (Bids)": [b[1] for b in bids],
+                "Bid Price": [b[0] for b in bids],
+                "Ask Price": [a[0] for a in asks],
+                "Size (Asks)": [a[1] for a in asks],
+            }
+        )
 
         return order_book_df
 
-def format_number(value):
-    """Formats large numbers with K (thousands) and M (millions)"""
+
+def format_number(x):
     try:
-        value = float(value)  # Ensure numeric type
-        if value >= 1_000_000:
-            return f"{value / 1_000_000:.2f}M"
-        elif value >= 1_000:
-            return f"{value / 1_000:.2f}K"
-        else:
-            return f"{value:.5f}"  # Ensure two decimal places
-    except (ValueError, TypeError):
-        return value  # Return as-is if not a number
+        x = float(x)  # Convert string to float
+        if x >= 1_000_000:
+            return f"{x / 1_000_000:.2f}M"
+        elif x >= 1_000:
+            return f"{x / 1_000:.2f}K"
+        return f"{x:.5f}"
+    except ValueError:
+        return str(x)  # If conversion fails, return as is
 
 
 @st.fragment
@@ -69,18 +75,22 @@ def order_book_display(data):
     data["Size (Asks)"] = data["Size (Asks)"].apply(format_number)
 
     # Create DataFrame for structured table
-    df = pd.DataFrame({
-        "Size": data["Size (Bids)"],
-        "Bid": data["Bid Price"],
-        "Ask": data["Ask Price"],
-        "Size ": data["Size (Asks)"]  # Space added to avoid name clash
-    })
+    df = pd.DataFrame(
+        {
+            "Size": data["Size (Bids)"],
+            "Bid": data["Bid Price"],
+            "Ask": data["Ask Price"],
+            "Size ": data["Size (Asks)"],
+        }
+    )
+
+    df.assign(hack="").set_index("hack")
 
     # Display the order book
-    st.table(df.style
-        .set_properties(subset=["Bid"], **{"color": "green", "font-weight": "bold"})
-        .set_properties(subset=["Ask"], **{"color": "red", "font-weight": "bold"})
-        .hide(axis="index")
+    st.table(
+        df.style.set_properties(
+            subset=["Bid"], **{"color": "green", "font-weight": "bold"}
+        ).set_properties(subset=["Ask"], **{"color": "red", "font-weight": "bold"})
     )
 
 
