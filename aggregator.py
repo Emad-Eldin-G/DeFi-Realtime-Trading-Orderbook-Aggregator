@@ -1,82 +1,101 @@
+import pandas as pd
 import redis.asyncio as redis
 import asyncio
-from db_websocket import run_db_ws
-from bi_websocket import run_bi_ws
+import streamlit as st
 
 class OrderBookAggregator:
     def __init__(self, redis_host='localhost', redis_port=6379):
+        self.redis = None
         self.redis_host = redis_host
         self.redis_port = redis_port
-        self.redis = None
 
-    async def connect_redis(self):
-        """
-        Connect to Redis asynchronously using redis.asyncio.
-        """
-        self.redis = redis.Redis(host=self.redis_host, port=self.redis_port, db=0)
-        print("Connected to Redis")
+    async def connect(self):
+        """Initialize async Redis connection."""
+        self.redis = await redis.Redis(host=self.redis_host, port=self.redis_port, db=0, decode_responses=True)
 
     async def get_order_books(self):
         """
-        Query Redis for the latest bids and asks from both Binance and Deribit.
-        Combine and return the order book data.
+        Fetch and format order book data from Redis.
         """
-        # Fetch the order book data from Redis for Binance and Deribit
-        binance_bids = await self.redis.zrange('BTC-PERPETUAL_bids', 0, -1, withscores=True)
-        binance_asks = await self.redis.zrange('BTC-PERPETUAL_asks', 0, -1, withscores=True)
+        redis_key = st.session_state.get("redis_key", "default_key")
 
-        deribit_bids = await self.redis.zrange('BTC-PERPETUAL_bids', 0, -1, withscores=True)
-        deribit_asks = await self.redis.zrange('BTC-PERPETUAL_asks', 0, -1, withscores=True)
+        # Fetch bids and asks from Redis
+        bids = await self.redis.zrevrange(f"{redis_key}_bids", 0, 19, withscores=True)
+        asks = await self.redis.zrange(f"{redis_key}_asks", 0, 19, withscores=True)
 
-        # Combine the bids and asks from both exchanges
-        combined_bids = sorted(binance_bids + deribit_bids, key=lambda x: x[1], reverse=True)  # Sort by price (score)
-        combined_asks = sorted(binance_asks + deribit_asks, key=lambda x: x[1])  # Sort by price (score)
+        # Convert bytes to float for readability
+        def process_orders(order_list):
+            return [(float(price), amount) for price, amount in order_list]
 
-        # Get the best bid and best ask
-        best_bid = combined_bids[0] if combined_bids else None
-        best_ask = combined_asks[0] if combined_asks else None
+        bids = process_orders(bids)
+        asks = process_orders(asks)
 
-        best_bid_price = float(best_bid[0].decode())  # Decode the byte string and convert to float
-        best_bid_amount = best_bid[1]  # This value is already a float
+        # Convert to DataFrame for better table formatting
+        max_len = max(len(bids), len(asks))
+        bids += [("", "")] * (max_len - len(bids))  # Pad shorter list
+        asks += [("", "")] * (max_len - len(asks))  # Pad shorter list
 
-        best_ask_price = float(best_ask[0].decode())  # Decode the byte string and convert to float
-        best_ask_amount = best_ask[1]  # This value is already a float
+        order_book_df = pd.DataFrame({
+            "Size (Bids)": [b[1] for b in bids],
+            "Bid Price": [b[0] for b in bids],
+            "Ask Price": [a[0] for a in asks],
+            "Size (Asks)": [a[1] for a in asks]
+        })
 
-        # Return the combined order book
-        return {
-            'best_bid': best_bid,
-            'best_ask': best_ask,
-            'combined_bids': combined_bids[:5],  # Top 5 bids
-            'combined_asks': combined_asks[:5]   # Top 5 asks
-        }
+        return order_book_df
 
-    async def display_order_book(self):
-        """
-        Continuously display the updated order book.
-        """
-        while True:
-            order_book = await self.get_order_books()
-            print("Best Bid:", order_book['best_bid'])
-            print("Best Ask:", order_book['best_ask'])
-            print("Top 5 Bids:", order_book['combined_bids'])
-            print("Top 5 Asks:", order_book['combined_asks'])
-            print("------\n")
-            await asyncio.sleep(1)  # Sleep for 1 second to simulate continuous display
-
-    async def start(self):
-        """
-        Start the Redis connection and continuously display the order book.
-        """
-        await self.connect_redis()
-        await self.display_order_book()
+def format_number(value):
+    """Formats scientific notation into decimal with 5 decimal places."""
+    return f"{value:.5f}"  # Adjust decimal places as needed
 
 
-# Usage example:
-if __name__ == '__main__':
-    aggregator = OrderBookAggregator(redis_host='localhost', redis_port=6379)
+def format_size(value):
+    """Formats large numbers with K (thousands) or M (millions)."""
+    try:
+        value = float(value)  # Ensure conversion
+        if value >= 1_000_000:
+            return f"{value / 1_000_000:.2f}M"
+        elif value >= 1_000:
+            return f"{value / 1_000:.2f}K"
+        return str(value)  # Keep as is for small numbers
+    except ValueError:
+        return value  # Return as is if not convertible
 
-    loop = asyncio.get_event_loop()
-    loop.create_task(aggregator.start())
-    loop.create_task(run_bi_ws())
-    loop.create_task(run_db_ws())
-    loop.run_forever()
+
+@st.fragment
+def order_book_display(data):
+    st.write("## Order Book")
+
+    # Convert order book data into a DataFrame for structured display
+    max_rows = 20  # Adjust for more depth
+    data = data.iloc[:max_rows]  # Fix incorrect list slicing on DataFrame
+
+    # Format numbers for better readability
+    data["Size (Bids)"] = data["Size (Bids)"].apply(format_size)
+    data["Size (Asks)"] = data["Size (Asks)"].apply(format_size)
+
+    # Create DataFrame for structured table
+    df = pd.DataFrame({
+        "Size": data["Size (Bids)"],
+        "Bid": data["Bid Price"],
+        "Ask": data["Ask Price"],
+        "Size ": data["Size (Asks)"]  # Space added to avoid name clash
+    })
+
+    # Display the order book
+    st.table(df.style
+        .set_properties(subset=["Bid"], **{"color": "green", "font-weight": "bold"})
+        .set_properties(subset=["Ask"], **{"color": "red", "font-weight": "bold"})
+        .hide(axis="index")
+    )
+
+
+async def run_aggregator():
+    aggregator = OrderBookAggregator()
+    await aggregator.connect()  # Ensure Redis connection is established
+    container = st.empty()
+    while True:
+        order_books = await aggregator.get_order_books()
+        with container:
+            order_book_display(order_books)
+        print(order_books)  # Debugging output
