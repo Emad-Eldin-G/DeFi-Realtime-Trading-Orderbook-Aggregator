@@ -13,7 +13,6 @@ Realtime aggregator of DeFi instrument order-books from different exchanges
 ### Current supported and implemented exchanges
 - Binance
 - Deribit
-- Coinbase (in progress)
 
 
 ## Notes on the implementation
