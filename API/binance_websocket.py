@@ -15,9 +15,8 @@ class BinanceWebSocket(ExchangeWebSocket):
         base_intstrument_name_dict = {
             "BTC": "btcusdt",
             "ETH": "ethusdt",
-            "XRP": "XRPUSDT",
         }
-        self.symbol = base_intstrument_name_dict[st.session_state["currency_1"]]
+        self.symbol = base_intstrument_name_dict[st.session_state["instrument"]]
         self.depth = depth
         self.msg = {
             "method": "SUBSCRIBE",

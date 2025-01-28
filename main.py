@@ -39,9 +39,8 @@ def configure_sidebar():
     ### Currently Supports:
     - [Binance](https://binance.com/)
     - [Deribit](https://deribit.com/)
-    - BTC/USD instrument
-    - ETH/USD instrument
-    - XRP/USD instrument
+    - BTC instrument
+    - ETH instrument
     > Note that instrument naming differs based on exchanges (use usd for currency 2 and Deribit will use perpetual in the backend)
     """)
 
@@ -72,14 +71,15 @@ def exchange_choice_form():
     st.write("#")
 
 
-def currency_choice_form():
-    st.subheader("Enter the currency pair you want to track", "BTC/USD")
-    two_columns = st.columns(2)
-    two_columns[0].text_input("Currency 1", "BTC", key="currency_1")
-    two_columns[1].text_input("Currency 2", "USD", key="currency_2")
-    st.session_state["redis_key"] = (
-        f"{st.session_state['currency_1']}{st.session_state['currency_2']}"
+def instrument_choice_multiselect():
+    st.subheader("Enter the instrument you want to track", "BTC")
+    st.selectbox(
+        "Instrument",
+        ["BTC", "ETH"],
+        key="instrument",
     )
+
+    st.session_state["redis_key"] = st.session_state["instrument"]
 
 
 def main():
@@ -87,7 +87,7 @@ def main():
     configure_sidebar()
     header()
     exchange_choice_form()
-    currency_choice_form()
+    instrument_choice_multiselect()
     if st.button("Start", key="start_button"):
         try:
             loop = asyncio.new_event_loop()

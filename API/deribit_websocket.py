@@ -16,9 +16,8 @@ class DeribitWebSocket(ExchangeWebSocket):
         base_instrument_name_dict = {
             "BTC": "BTC-PERPETUAL",
             "ETH": "ETH-PERPETUAL",
-            "XRP": "XRP-PERPETUAL",
         }
-        self.instrument_name = base_instrument_name_dict[st.session_state["currency_1"]]
+        self.instrument_name = base_instrument_name_dict[st.session_state["instrument"]]
         self.depth = depth
         self.msg = {
             "jsonrpc": "2.0",
