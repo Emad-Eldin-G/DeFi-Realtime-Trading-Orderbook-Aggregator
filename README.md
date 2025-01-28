@@ -7,7 +7,7 @@ Realtime aggregator of DeFi instrument order-books from different exchanges
 3. Run `docker-compose up --build` in the root directory (where `docker-compose.yml` is located)
 4. The application should be running on `http://0.0.0.0:8501/`
 5. To stop the application, run `docker-compose down`
-> Note that the app only runs on docker,
+> Note that the app only runs on docker,  
 > minor changes need to be made with the Redis config if to be run on localhost
 
 ### Current supported and implemented exchanges
